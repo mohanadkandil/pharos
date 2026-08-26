@@ -27,6 +27,8 @@ const ICONS = {
     reset: `<svg ${SVG_ATTRS}><path d="M20 12a8 8 0 1 1-2.9-6.2"/><path d="M20 3.5V8h-4.5"/></svg>`,
     // Land plot growing outward
     expand: `<svg ${SVG_ATTRS}><rect x="8" y="8" width="8" height="8" rx="1"/><path d="M12 4.5V2M12 22v-2.5M4.5 12H2M22 12h-2.5"/><path d="m10 3 2-2 2 2M10 21l2 2 2-2M3 10 1 12l2 2M21 10l2 2-2 2"/></svg>`,
+    // Crescent moon
+    night: `<svg ${SVG_ATTRS}><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2z"/><path d="M16 4v3M14.5 5.5h3"/></svg>`,
 };
 
 const TOOLS = [
@@ -35,6 +37,7 @@ const TOOLS = [
     { id: 'erase', label: 'Erase' },
     { id: 'pan',   label: 'Pan'   },
     { id: 'grid',  label: 'Grid'  },
+    { id: 'night', label: 'Night' },
     { id: 'save',  label: 'Save'  },
     { id: 'expand', label: 'Expand' },
     { id: 'reset', label: 'Reset', danger: true },
@@ -77,6 +80,8 @@ export class Toolbar {
             game?.toggleGrid?.();
         } else if (id === 'save') {
             game?.save?.();
+        } else if (id === 'night') {
+            game?.toggleNight?.();
         } else if (id === 'expand') {
             game?.expandLand?.();
         } else if (id === 'reset') {
@@ -91,9 +96,11 @@ export class Toolbar {
     update() {
         const tool = this.game?.tool;
         const grid = !!this.game?.gridVisible;
+        const night = !!this.game?.nightMode;
         for (const [id, btn] of this.buttons) {
             const active = TOOL_MODES.has(id) ? id === tool
                          : id === 'grid' ? grid
+                         : id === 'night' ? night
                          : false;
             btn.classList.toggle('active', active);
             btn.setAttribute('aria-pressed', String(active));

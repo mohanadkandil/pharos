@@ -33,6 +33,7 @@ python3 -m http.server 8000
 | `H` / `V` | Flip placement preview |
 | `E` | Toggle erase mode |
 | `G` | Toggle grid overlay |
+| `N` | Toggle night mode |
 | `1`–`5` | Switch palette category |
 | `S` / `R` | Save / reset |
 
@@ -56,6 +57,9 @@ python3 -m http.server 8000
   hi-DPI world-space canvases and only re-composited per frame; idle
   frames early-exit entirely. Cast shadows are blurred silhouettes baked
   once into the object layer.
+- **Living night mode.** Stars replace the papyrus sky; fanoos
+  lanterns, braziers and windows glow; turquoise domes catch moonlight;
+  and the Pharos sweeps a rotating beam across the water.
 - **Auto-save.** The city persists to `localStorage`, camera included.
 - **A starter scene** seeds a spacious slice of Alexandria on first
   run: pyramids in the desert behind town, a mosque on its marble
