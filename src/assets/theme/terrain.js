@@ -37,15 +37,15 @@ export function fertileSilt() {
     return t;
 }
 
-/** Dune sand with wind ripples running across. */
+/** Dune sand with broken wind-ripple flecks. */
 export function duneSand() {
     const t = floor(P.sand);
-    for (let x = 0; x < VPT; x++) {
-        const v = t.find(o => o.x === x && o.y === 1 && o.z === 0);
-        if (v) v.c = P.sandDark;
-        const v2 = t.find(o => o.x === x && o.y === 3 && o.z === 0);
-        if (v2) v2.c = P.sandLight;
-    }
+    speckle(t, [
+        { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 3, y: 2 },
+    ], P.sandDark);
+    speckle(t, [
+        { x: 2, y: 3 }, { x: 0, y: 3 },
+    ], P.sandLight);
     return t;
 }
 
