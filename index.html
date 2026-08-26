@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#24568f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Pharos — build a little Alexandria</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <div id="loading-screen">
+        <div class="loading-card">
+            <div class="loading-glyph" aria-hidden="true">
+                <div class="glyph-beam glyph-beam--left"></div>
+                <div class="glyph-beam glyph-beam--right"></div>
+                <div class="glyph-tower"></div>
+                <div class="glyph-lamp"></div>
+                <div class="glyph-base"></div>
+            </div>
+            <div class="loading-title">Pharos</div>
+            <div class="loading-sub">Build a little Alexandria</div>
+            <div class="loading-bar"><div id="loading-fill"></div></div>
+            <div id="loading-status">carving limestone…</div>
+        </div>
+    </div>
+
+    <div id="app" class="hidden">
+        <canvas id="game-canvas"></canvas>
+
+        <header id="title-card">
+            <div class="title-glyph" aria-hidden="true"></div>
+            <div class="title-text">
+                <h1>Pharos</h1>
+                <p>Build a little Alexandria</p>
+            </div>
+        </header>
+
+        <aside id="toolbar" aria-label="Tools"></aside>
+
+        <section id="palette" aria-label="Asset palette">
+            <nav id="palette-tabs"></nav>
+            <div id="palette-grid"></div>
+        </section>
+
+        <section id="hud" aria-label="Status">
+            <div class="hud-row"><span class="hud-key">Selected</span><span id="hud-asset">—</span></div>
+            <div class="hud-row"><span class="hud-key">Cell</span><span id="hud-cell">—</span></div>
+            <div class="hud-row"><span class="hud-key">Objects</span><span id="hud-count">0</span></div>
+        </section>
+
+        <div id="controls-hint" aria-label="Controls">
+            <span class="chip-key">Click</span> place
+            <span class="chip-sep">·</span>
+            <span class="chip-key">Right-click</span> erase
+            <span class="chip-sep">·</span>
+            <span class="chip-key">Shift-drag</span> pan
+            <span class="chip-sep">·</span>
+            <span class="chip-key">Wheel</span> zoom
+            <span class="chip-sep">·</span>
+            <span class="chip-key">H/V</span> flip
+            <span class="chip-sep">·</span>
+            <span class="chip-key">G</span> grid
+            <span class="chip-sep">·</span>
+            <span class="chip-key">1–5</span> categories
+        </div>
+
+        <div id="toast" role="status"></div>
+    </div>
+
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
