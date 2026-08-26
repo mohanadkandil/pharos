@@ -88,6 +88,31 @@ export class TileMap {
         this.objectsVersion++;
     }
 
+    /**
+     * Grow (or shrink) the grid, preserving terrain by coordinate and
+     * keeping every object that still fits. Both version counters bump
+     * so the renderer rebuilds its world caches.
+     */
+    resize(newW, newH) {
+        if (newW === this.width && newH === this.height) return;
+        const old = { w: this.width, h: this.height, terrain: this.terrain };
+
+        this.width = newW;
+        this.height = newH;
+        this.terrain = new Array(newW * newH).fill(null);
+        for (let gy = 0; gy < Math.min(old.h, newH); gy++)
+            for (let gx = 0; gx < Math.min(old.w, newW); gx++)
+                this.terrain[gy * newW + gx] = old.terrain[gy * old.w + gx];
+
+        this.objects = this.objects.filter(o =>
+            o.gx + o.footprint.w <= newW && o.gy + o.footprint.d <= newH);
+        this._occupancy = new Array(newW * newH).fill(null);
+        for (const obj of this.objects) this._stampOccupancy(obj, obj);
+
+        this.terrainVersion++;
+        this.objectsVersion++;
+    }
+
     serialize() {
         return {
             width: this.width,

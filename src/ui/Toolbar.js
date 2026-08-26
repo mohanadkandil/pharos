@@ -25,6 +25,8 @@ const ICONS = {
     save: `<svg ${SVG_ATTRS}><path d="M5 3.5h11L20.5 8v12.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1z"/><path d="M8 3.5V9h7V3.5"/><rect x="7.5" y="13.5" width="9" height="8" rx="0.5"/></svg>`,
     // Circular refresh arrow
     reset: `<svg ${SVG_ATTRS}><path d="M20 12a8 8 0 1 1-2.9-6.2"/><path d="M20 3.5V8h-4.5"/></svg>`,
+    // Land plot growing outward
+    expand: `<svg ${SVG_ATTRS}><rect x="8" y="8" width="8" height="8" rx="1"/><path d="M12 4.5V2M12 22v-2.5M4.5 12H2M22 12h-2.5"/><path d="m10 3 2-2 2 2M10 21l2 2 2-2M3 10 1 12l2 2M21 10l2 2-2 2"/></svg>`,
 };
 
 const TOOLS = [
@@ -34,6 +36,7 @@ const TOOLS = [
     { id: 'pan',   label: 'Pan'   },
     { id: 'grid',  label: 'Grid'  },
     { id: 'save',  label: 'Save'  },
+    { id: 'expand', label: 'Expand' },
     { id: 'reset', label: 'Reset', danger: true },
 ];
 
@@ -74,6 +77,8 @@ export class Toolbar {
             game?.toggleGrid?.();
         } else if (id === 'save') {
             game?.save?.();
+        } else if (id === 'expand') {
+            game?.expandLand?.();
         } else if (id === 'reset') {
             if (window.confirm('Reset the whole city? This clears your save.')) {
                 game?.reset?.();

@@ -134,6 +134,37 @@ export class Game {
         this.ui?.update();
     }
 
+    /**
+     * Grow the island by a ring of fresh desert on the right and front
+     * edges. New cells ripple in as dune sand, ready to build on.
+     */
+    expandLand(delta = 3, max = 40) {
+        const tm = this.tileMap;
+        const oldW = tm.width, oldH = tm.height;
+        const newW = Math.min(max, oldW + delta);
+        const newH = Math.min(max, oldH + delta);
+        if (newW === oldW && newH === oldH) {
+            this.ui?.showToast(`The island is at its largest (${max}×${max})`);
+            return false;
+        }
+
+        tm.resize(newW, newH);
+
+        // Ripple dune sand across the newly reclaimed ring.
+        for (let gy = 0; gy < newH; gy++)
+            for (let gx = 0; gx < newW; gx++) {
+                if (gx < oldW && gy < oldH) continue;
+                const delay = (Math.max(gx - oldW, gy - oldH, 0)) * 60;
+                this.placeAndAnimate('dune_sand', gx, gy, { delay, silent: true });
+            }
+        playPlacement('terrain');
+
+        this.renderer.markDirty();
+        this.ui?.showToast(`Island expanded to ${newW}×${newH}`);
+        this.ui?.update();
+        return true;
+    }
+
     /* ── World mutations ──────────────────────────────────────── */
 
     /**
