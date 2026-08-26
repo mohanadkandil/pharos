@@ -8,6 +8,7 @@ import { Toolbar } from './Toolbar.js';
 import { AssetPalette } from './AssetPalette.js';
 import { HUD } from './HUD.js';
 import { loadUiAudio } from './Audio.js';
+import { ConstructionUI } from './ConstructionUI.js';
 
 export class UIManager {
     constructor(game) {
@@ -21,6 +22,7 @@ export class UIManager {
             game,
         );
         this.hud = new HUD(game);
+        this.construction = new ConstructionUI(game);
         this.toastEl = document.getElementById('toast');
         this._toastTimer = 0;
     }
@@ -29,6 +31,7 @@ export class UIManager {
         this.toolbar.update();
         this.palette.update();
         this.hud.update();
+        this.construction.update();
     }
 
     /** Category hotkeys (1-5) route through here. */

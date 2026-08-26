@@ -1,21 +1,25 @@
-# Pharos
+# HYPATIA
 
-Build a little Alexandria, one block at a time.
+Rebuild Alexandria, one remembered building at a time.
 
-Pharos is an isometric voxel city-builder that runs entirely in the
-browser — no bundler, no dependencies, no asset files. Every sprite is
-generated at load time from voxel definitions: the Pharos lighthouse
-with its burning flame chamber, turquoise mosque domes, mudbrick houses,
-date palms, feluccas drifting on the Nile, a striped souq awning, even a
-standing camel. Click a cell, pick a piece, and a sun-baked city
-assembles under your cursor.
+HYPATIA is an isometric voxel city-builder about rebuilding a fictional
+future Alexandria from memories. Residents commission a home; three
+authored plans respond to the Nile, road and preserved palm; workers,
+cart, scaffolding, walls, windows and interiors appear through six
+construction phases. At walls-complete, the player changes the design.
+The finished building remembers that decision in a Memory / Decision /
+New Life passport and deterministic replay.
+
+The shipped site remains framework-free and dependency-free. Development
+uses pinned TypeScript and Playwright tooling to compile the mixed JS/TS
+source tree into static `dist/` files.
 
 ## Play
 
-Serve the folder with any static file server and open it:
-
 ```bash
-python3 -m http.server 8000
+npm install
+npm run build
+npm start
 # → http://localhost:8000
 ```
 
@@ -48,6 +52,10 @@ python3 -m http.server 8000
 
 ## What's in the box
 
+- **Living construction chronicle.** Review one remembered resident
+  commission, compare Compact/Courtyard/Colonnaded plans, watch a
+  deterministic six-phase build, make a heat/shade intervention, welcome
+  the family home, inspect the building passport, and replay the build.
 - **33 procedural assets** across terrain, nature, props, water and
   buildings — from a single papyrus clump to the Great Pyramid.
 - **Zero binary files.** Voxel art is rendered to canvases at load
@@ -69,20 +77,27 @@ python3 -m http.server 8000
 ## Architecture
 
 ```
-index.html / styles.css      the whole UI, framework-free
+index.html / styles.css      HYPATIA UI, copied into static dist
 src/
 ├── config.js                grid/voxel dimensions + Egyptian palette
-├── main.js                  boot, progress UI, starter scene
+├── main.js                  boot, exact story fixture, runtime mode
+├── construction/
+│   ├── content.ts           authored commission/plans/phases/branches
+│   └── ConstructionSystem.ts deterministic state, save, replay snapshots
 ├── assets/
 │   ├── voxelRenderer.js     voxel→canvas projection + shape helpers
-│   ├── assetManifest.js     the asset catalog
+│   ├── assetManifest.js     sandbox asset catalog
 │   ├── assetFactory.js      builders → draw-ready records (+shadows)
 │   └── theme/               terrain / nature / props / buildings
 ├── core/                    Game, Renderer, Camera, InputManager
 ├── grid/                    IsoGrid math, TileMap world state
-├── building/                placement rules
-├── storage/                 localStorage persistence
-└── ui/                      toolbar, palette, HUD, synthesized audio
+├── building/                placement + construction reservations
+├── storage/                 v1→v2 localStorage persistence
+└── ui/                      editor UI + ConstructionUI + synthesized audio
+tests/
+├── construction/            100% line/function/branch unit coverage
+├── storage/                 migration/recovery tests
+└── e2e/                     Playwright desktop/tablet/mobile journeys
 ```
 
 Inspired by the lovely
