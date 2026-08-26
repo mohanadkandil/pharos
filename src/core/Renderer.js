@@ -16,7 +16,7 @@
 import { CONFIG } from '../config.js';
 import { cellToScreen, cellInBounds } from '../grid/IsoGrid.js';
 import { getAsset } from '../assets/assetFactory.js';
-import { voxelToScreen } from '../assets/voxelRenderer.js';
+import { renderVoxels, voxelToScreen } from '../assets/voxelRenderer.js';
 import { ASSET_INDEX } from '../assets/assetManifest.js';
 
 const PAL = CONFIG.palette;
@@ -30,7 +30,8 @@ const PAD_X = 280;
 // World caches are stored above 1:1 so sprites stay crisp when zoomed in.
 // Capped at 3 to keep cache canvases well inside browser size limits.
 const DPR = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
-const CACHE_SCALE = Math.min(3, Math.max(2, Math.ceil(DPR * 1.5)));
+const BASE_CACHE_SCALE = Math.min(3, Math.max(2, Math.ceil(DPR * 1.5)));
+const MAX_WORLD_CACHE_PIXELS = 12_000_000;
 
 const POP_MS = 350;              // default placement pop duration
 const SHADOW_ALPHA = 0.18;
@@ -86,6 +87,11 @@ export class Renderer {
         this._waterCells = [];        // cells holding nile_water, for shimmer
         this._shimmerAt = 0;
         this._nightAt = 0;
+        this.constructionSnapshot = null;
+        this._constructionDefinitions = Object.freeze({});
+        this._constructionSprites = new Map();
+        this._constructionSpriteBytes = 0;
+        this._constructionSpriteBudget = 48 * 1024 * 1024;
 
         this._cssW = 1;
         this._cssH = 1;
@@ -101,6 +107,11 @@ export class Renderer {
     setNightMode(on) {
         this.nightMode = !!on;
         this._skyStale = true;
+        this._dirty = true;
+    }
+
+    prepareConstructionSprites(definitions) {
+        this._constructionDefinitions = definitions;
         this._dirty = true;
     }
 
@@ -186,6 +197,7 @@ export class Renderer {
         }
         if (this.gridVisible) this._drawGridLines();
         ctx.drawImage(this._objectsCache, wb.x, wb.y, wb.w, wb.h);
+        if (this.constructionSnapshot) this._drawConstruction(this.constructionSnapshot, now);
 
         this._drawOverlay();
         ctx.restore();
@@ -448,6 +460,15 @@ export class Renderer {
         ctx.stroke();
     }
 
+    _worldCacheScale() {
+        const wb = this._bounds;
+        if (!wb) return BASE_CACHE_SCALE;
+        return Math.min(
+            BASE_CACHE_SCALE,
+            Math.max(1, Math.sqrt(MAX_WORLD_CACHE_PIXELS / (wb.w * wb.h))),
+        );
+    }
+
     /* ── Terrain cache ────────────────────────────────────────── */
 
     _ensureTerrain() {
@@ -457,8 +478,9 @@ export class Renderer {
         this._terrainStale = false;
 
         const wb = this._bounds;
-        const cw = wb.w * CACHE_SCALE;
-        const ch = wb.h * CACHE_SCALE;
+        const cacheScale = this._worldCacheScale();
+        const cw = Math.ceil(wb.w * cacheScale);
+        const ch = Math.ceil(wb.h * cacheScale);
         if (!this._terrainCache
             || this._terrainCache.width !== cw
             || this._terrainCache.height !== ch) {
@@ -472,7 +494,7 @@ export class Renderer {
         ctx.imageSmoothingQuality = 'high';
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, cw, ch);
-        ctx.scale(CACHE_SCALE, CACHE_SCALE);
+        ctx.scale(cacheScale, cacheScale);
         ctx.translate(-wb.x, -wb.y);
 
         this._waterCells.length = 0;
@@ -481,7 +503,6 @@ export class Renderer {
             const id = tm.getTerrain(gx, gy);
             if (!id) continue;
             if (id === 'nile_water') this._waterCells.push({ gx, gy });
-            // Mid-pop tiles are drawn scaled by the live overlay instead.
             if (this._animTileKeys.has(`${gx},${gy}`)) continue;
             const asset = getAsset(id);
             if (!asset) continue;
@@ -506,8 +527,9 @@ export class Renderer {
         this._objectsStale = false;
 
         const wb = this._bounds;
-        const cw = wb.w * CACHE_SCALE;
-        const ch = wb.h * CACHE_SCALE;
+        const cacheScale = this._worldCacheScale();
+        const cw = Math.ceil(wb.w * cacheScale);
+        const ch = Math.ceil(wb.h * cacheScale);
         if (!this._objectsCache
             || this._objectsCache.width !== cw
             || this._objectsCache.height !== ch) {
@@ -521,15 +543,14 @@ export class Renderer {
         ctx.imageSmoothingQuality = 'high';
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, cw, ch);
-        ctx.scale(CACHE_SCALE, CACHE_SCALE);
+        ctx.scale(cacheScale, cacheScale);
         ctx.translate(-wb.x, -wb.y);
 
-        // Pass 1: every settled object's shadow, blurred once at bake time.
         ctx.save();
         ctx.globalAlpha = SHADOW_ALPHA;
         if (typeof ctx.filter === 'string') ctx.filter = `blur(${SHADOW_BLUR}px)`;
         for (const obj of tm.objects) {
-            if (this._animObjIds.has(obj.id)) continue;
+            if (obj.renderStatic === false || this._animObjIds.has(obj.id)) continue;
             const asset = getAsset(obj.assetId);
             if (this._castsShadow(asset)) {
                 this._drawObjectShadow(ctx, asset, obj.gx, obj.gy, obj.footprint, obj);
@@ -537,8 +558,7 @@ export class Renderer {
         }
         ctx.restore();
 
-        // Pass 2: sprites, painter's order.
-        const settled = tm.objects.filter(o => !this._animObjIds.has(o.id));
+        const settled = tm.objects.filter(o => o.renderStatic !== false && !this._animObjIds.has(o.id));
         settled.sort((a, b) => a.sortKey() - b.sortKey());
         for (const obj of settled) {
             const asset = getAsset(obj.assetId);
@@ -870,6 +890,165 @@ export class Renderer {
             }
         }
         ctx.restore();
+    }
+
+    _getConstructionSprite(spriteId) {
+        const cached = this._constructionSprites.get(spriteId);
+        if (cached) {
+            cached.lastUsed = performance.now();
+            return cached;
+        }
+        const voxels = this._constructionDefinitions[spriteId];
+        if (!voxels) return null;
+        const rendered = renderVoxels(voxels, { w: 5, d: 5 });
+        const bytes = rendered.canvas.width * rendered.canvas.height * 4;
+        while (this._constructionSpriteBytes + bytes > this._constructionSpriteBudget
+            && this._constructionSprites.size > 0) {
+            let oldestId = null;
+            let oldestAt = Infinity;
+            for (const [id, record] of this._constructionSprites) {
+                if (record.lastUsed < oldestAt) {
+                    oldestId = id;
+                    oldestAt = record.lastUsed;
+                }
+            }
+            if (oldestId == null) break;
+            const oldest = this._constructionSprites.get(oldestId);
+            this._constructionSpriteBytes -= oldest.bytes;
+            this._constructionSprites.delete(oldestId);
+        }
+        const record = {
+            ...rendered,
+            bytes,
+            lastUsed: performance.now(),
+        };
+        this._constructionSprites.set(spriteId, record);
+        this._constructionSpriteBytes += bytes;
+        return record;
+    }
+
+    _drawConstruction(snapshot, now) {
+        if (!snapshot || snapshot.status === 'idle') return;
+        const ctx = this.ctx;
+        const site = snapshot.site;
+
+        // The curated plot remains legible throughout planning/construction.
+        const a = cellToScreen(site.gx, site.gy);
+        const b = cellToScreen(site.gx + site.w, site.gy);
+        const c = cellToScreen(site.gx + site.w, site.gy + site.d);
+        const d = cellToScreen(site.gx, site.gy + site.d);
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.lineTo(c.x, c.y);
+        ctx.lineTo(d.x, d.y);
+        ctx.closePath();
+        ctx.fillStyle = snapshot.status === 'plan-selected'
+            ? tint(PAL.turquoise, 0.10)
+            : tint(PAL.gold, 0.055);
+        ctx.strokeStyle = snapshot.status === 'awaiting-intervention'
+            ? PAL.goldLight
+            : tint(PAL.turquoise, 0.72);
+        ctx.lineWidth = 1.5 / this.camera.zoom;
+        ctx.setLineDash(snapshot.status === 'building' ? [5, 4] : []);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+
+        for (const group of snapshot.spriteGroups) {
+            if (group.clipProgress <= 0 || group.alpha <= 0) continue;
+            const sprite = this._getConstructionSprite(group.spriteId);
+            if (!sprite) continue;
+            const origin = cellToScreen(group.transform.x, group.transform.y);
+            const dx = origin.x - sprite.anchorX;
+            const dy = origin.y - sprite.anchorY;
+            const reveal = Math.max(0, Math.min(1, group.clipProgress));
+            ctx.save();
+            ctx.globalAlpha *= group.alpha;
+            if (reveal < 1) {
+                const top = dy + sprite.height * (1 - reveal);
+                ctx.beginPath();
+                ctx.rect(dx - 2, top, sprite.width + 4, sprite.height * reveal + 4);
+                ctx.clip();
+            }
+            ctx.drawImage(sprite.canvas, dx, dy, sprite.width, sprite.height);
+            ctx.restore();
+        }
+
+        ctx.save();
+        ctx.lineCap = 'round';
+        for (const segment of snapshot.scaffold) {
+            const from = cellToScreen(segment.x1, segment.y1);
+            const to = cellToScreen(segment.x2, segment.y2);
+            ctx.beginPath();
+            ctx.moveTo(from.x, from.y - segment.z * CONFIG.voxel.height);
+            ctx.lineTo(to.x, to.y - segment.z * CONFIG.voxel.height);
+            ctx.strokeStyle = PAL.woodLight;
+            ctx.lineWidth = 2 / this.camera.zoom;
+            ctx.stroke();
+        }
+        ctx.restore();
+
+        for (const worker of snapshot.workers) {
+            const p = cellToScreen(worker.x, worker.y);
+            ctx.save();
+            ctx.fillStyle = worker.id.endsWith('1') || worker.id.endsWith('3')
+                ? PAL.clothTeal
+                : PAL.clothRed;
+            ctx.fillRect(p.x - 3, p.y - 17, 6, 10);
+            ctx.fillStyle = PAL.sandDark;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y - 20, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+            if (worker.pose === 'carry') {
+                ctx.fillStyle = PAL.woodLight;
+                ctx.fillRect(p.x - 7, p.y - 13, 14, 3);
+            }
+            ctx.restore();
+        }
+
+        if (snapshot.cart) {
+            const p = cellToScreen(snapshot.cart.x, snapshot.cart.y);
+            ctx.save();
+            ctx.fillStyle = PAL.wood;
+            ctx.fillRect(p.x - 10, p.y - 12, 20, 9);
+            ctx.fillStyle = PAL.iron;
+            ctx.beginPath();
+            ctx.arc(p.x - 7, p.y - 2, 3, 0, Math.PI * 2);
+            ctx.arc(p.x + 7, p.y - 2, 3, 0, Math.PI * 2);
+            ctx.fill();
+            if (snapshot.cart.load === 'stone') {
+                ctx.fillStyle = PAL.limestone;
+                ctx.fillRect(p.x - 6, p.y - 17, 12, 6);
+            }
+            ctx.restore();
+        }
+
+        ctx.save();
+        for (const particle of snapshot.dust) {
+            const p = cellToScreen(particle.x, particle.y);
+            const life = 1 - particle.age / 30;
+            if (life <= 0) continue;
+            ctx.globalAlpha = life * 0.16;
+            ctx.fillStyle = PAL.sandLight;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y - particle.age * 0.35, 1.5 + (particle.seed % 3), 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+
+        if (snapshot.status === 'completed') {
+            const pulse = 0.5 + Math.sin(now * 0.004) * 0.08;
+            for (const cue of snapshot.lightCues) {
+                const p = cellToScreen(cue.gx, cue.gy);
+                const g = ctx.createRadialGradient(p.x, p.y - cue.z * 12, 0, p.x, p.y - cue.z * 12, 46);
+                g.addColorStop(0, `rgba(255,198,83,${pulse * cue.strength})`);
+                g.addColorStop(1, 'rgba(255,198,83,0)');
+                ctx.fillStyle = g;
+                ctx.fillRect(p.x - 46, p.y - cue.z * 12 - 46, 92, 92);
+            }
+        }
     }
 
     /** Cinematic exposure, moon rim, emissive architecture and Pharos beam. */
