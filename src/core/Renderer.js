@@ -16,6 +16,7 @@
 import { CONFIG } from '../config.js';
 import { cellToScreen, cellInBounds } from '../grid/IsoGrid.js';
 import { getAsset } from '../assets/assetFactory.js';
+import { voxelToScreen } from '../assets/voxelRenderer.js';
 import { ASSET_INDEX } from '../assets/assetManifest.js';
 
 const PAL = CONFIG.palette;
@@ -283,9 +284,9 @@ export class Renderer {
         bctx.scale(dpr, dpr);
         if (this.nightMode) {
             const sky = bctx.createLinearGradient(0, 0, 0, h);
-            sky.addColorStop(0, '#07142f');
-            sky.addColorStop(0.58, '#132852');
-            sky.addColorStop(1, '#253456');
+            sky.addColorStop(0, '#010208');
+            sky.addColorStop(0.56, '#030713');
+            sky.addColorStop(1, '#080d1c');
             bctx.fillStyle = sky;
             bctx.fillRect(0, 0, w, h);
 
@@ -303,9 +304,10 @@ export class Renderer {
             bctx.globalAlpha = 1;
 
             const moon = bctx.createRadialGradient(w * 0.76, h * 0.14, 0,
-                w * 0.76, h * 0.14, Math.max(w, h) * 0.34);
-            moon.addColorStop(0, 'rgba(214,226,255,.24)');
-            moon.addColorStop(1, 'rgba(214,226,255,0)');
+                w * 0.76, h * 0.14, Math.max(w, h) * 0.3);
+            moon.addColorStop(0, 'rgba(180,204,255,.1)');
+            moon.addColorStop(0.42, 'rgba(104,140,211,.025)');
+            moon.addColorStop(1, 'rgba(80,110,180,0)');
             bctx.fillStyle = moon;
             bctx.fillRect(0, 0, w, h);
         } else {
@@ -870,67 +872,125 @@ export class Renderer {
         ctx.restore();
     }
 
-    /** Screen-space night tint, practical lights, and rotating Pharos beam. */
+    /** Cinematic exposure, moon rim, emissive architecture and Pharos beam. */
     _drawNightLights(now, w, h) {
         const ctx = this.ctx;
         ctx.save();
-        ctx.fillStyle = 'rgba(4, 10, 32, .48)';
-        ctx.fillRect(0, 0, w, h);
-        ctx.globalCompositeOperation = 'screen';
 
-        const glow = (wx, wy, radius, color, strength = 0.8) => {
-            const p = this.camera.worldToScreen(wx, wy);
-            const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, radius);
+        // Exposure pass. Near-black rather than a blue color wash.
+        ctx.fillStyle = 'rgba(0, 2, 10, .58)';
+        ctx.fillRect(0, 0, w, h);
+
+        // A restrained cold rim keeps voxel silhouettes and rooflines legible.
+        ctx.save();
+        ctx.translate(this.camera.offsetX, this.camera.offsetY);
+        ctx.scale(this.camera.zoom, this.camera.zoom);
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = 0.12;
+        ctx.filter = 'drop-shadow(-3px -5px 2px rgba(105,145,215,.8))';
+        const wb = this._bounds;
+        ctx.drawImage(this._objectsCache, wb.x, wb.y, wb.w, wb.h);
+        ctx.filter = 'none';
+        ctx.restore();
+
+        ctx.globalCompositeOperation = 'screen';
+        const warm = 'rgba(255,184,64,ALPHA)';
+
+        const glowAt = (x, y, radius, strength = 0.8, color = warm) => {
+            const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
             g.addColorStop(0, color.replace('ALPHA', String(strength)));
-            g.addColorStop(0.25, color.replace('ALPHA', String(strength * 0.55)));
+            g.addColorStop(0.18, color.replace('ALPHA', String(strength * 0.46)));
             g.addColorStop(1, color.replace('ALPHA', '0'));
             ctx.fillStyle = g;
-            ctx.fillRect(p.x - radius, p.y - radius, radius * 2, radius * 2);
+            ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
         };
 
-        const warm = 'rgba(255,190,72,ALPHA)';
-        const cool = 'rgba(82,206,214,ALPHA)';
+        const voxelPoint = (obj, x, y, z) => {
+            const origin = cellToScreen(obj.gx, obj.gy);
+            const v = voxelToScreen(x, y, z);
+            return this.camera.worldToScreen(origin.x + v.sx, origin.y + v.sy);
+        };
+
+        const pane = (obj, x, y, z, face = 'left') => {
+            const p = voxelPoint(obj, x, y, z);
+            const s = this.camera.zoom;
+            glowAt(p.x, p.y + 10 * s, 20 * s, 0.62);
+            ctx.save();
+            ctx.shadowColor = 'rgba(255,181,55,.95)';
+            ctx.shadowBlur = 7 * s;
+            const grd = ctx.createLinearGradient(p.x, p.y + 5 * s, p.x, p.y + 22 * s);
+            grd.addColorStop(0, '#fff1b0');
+            grd.addColorStop(0.5, '#ffc651');
+            grd.addColorStop(1, '#c66a16');
+            ctx.fillStyle = grd;
+            ctx.beginPath();
+            if (face === 'right') {
+                ctx.moveTo(p.x, p.y + 8 * s);
+                ctx.lineTo(p.x + 7 * s, p.y + 4.5 * s);
+                ctx.lineTo(p.x + 7 * s, p.y + 19 * s);
+                ctx.lineTo(p.x, p.y + 23 * s);
+            } else {
+                ctx.moveTo(p.x, p.y + 8 * s);
+                ctx.lineTo(p.x - 7 * s, p.y + 4.5 * s);
+                ctx.lineTo(p.x - 7 * s, p.y + 19 * s);
+                ctx.lineTo(p.x, p.y + 23 * s);
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        };
+
         let pharos = null;
         for (const obj of this.tileMap.objects) {
-            const ground = cellToScreen(
-                obj.gx + obj.footprint.w / 2,
-                obj.gy + obj.footprint.d / 2,
-            );
-            if (obj.assetId === 'fanoos_lantern') glow(ground.x, ground.y - 32, 48, warm, 0.95);
-            else if (obj.assetId === 'bronze_brazier') {
-                const flicker = 0.75 + Math.sin(now * 0.023) * 0.12;
-                glow(ground.x, ground.y - 24, 58, warm, flicker);
+            if (obj.assetId === 'mudbrick_house') {
+                pane(obj, 1, 7, 3); pane(obj, 5, 7, 3);
+            } else if (obj.assetId === 'alexandria_house') {
+                pane(obj, 2, 11, 1); pane(obj, 9, 11, 1);
+                pane(obj, 3, 10, 6); pane(obj, 8, 10, 6);
+                pane(obj, 3, 10, 9); pane(obj, 5, 10, 9);
+                pane(obj, 6, 10, 9); pane(obj, 8, 10, 9);
             } else if (obj.assetId === 'mosque') {
-                glow(ground.x, ground.y - 78, 62, cool, 0.34);
-            } else if (obj.assetId === 'alexandria_house'
-                || obj.assetId === 'mudbrick_house') {
-                glow(ground.x, ground.y - 42, 48, warm, 0.42);
+                pane(obj, 2, 11, 3); pane(obj, 9, 11, 3);
+                pane(obj, 11, 4, 4, 'right'); pane(obj, 11, 7, 4, 'right');
+            } else if (obj.assetId === 'minaret') {
+                pane(obj, 3, 5, 5); pane(obj, 3, 5, 9);
+            } else if (obj.assetId === 'fanoos_lantern') {
+                const p = voxelPoint(obj, 2, 2, 4);
+                glowAt(p.x, p.y + 8, 34, 0.9);
+            } else if (obj.assetId === 'bronze_brazier') {
+                const p = voxelPoint(obj, 2, 2, 3);
+                glowAt(p.x, p.y + 8, 46, 0.72 + Math.sin(now * 0.023) * 0.1);
             } else if (obj.assetId === 'pharos') {
-                pharos = { x: ground.x, y: ground.y - 165 };
-                glow(pharos.x, pharos.y, 88, warm, 1);
+                const p = voxelPoint(obj, 6, 6, 16);
+                pharos = p;
+                glowAt(p.x, p.y + 6, 58, 0.92);
             }
         }
 
         if (pharos) {
-            const p = this.camera.worldToScreen(pharos.x, pharos.y);
-            const angle = (now * 0.00035) % (Math.PI * 2);
-            const length = Math.max(w, h) * 0.72;
-            const spread = 0.11;
-            ctx.save();
-            ctx.translate(p.x, p.y);
-            ctx.rotate(angle);
-            const beam = ctx.createLinearGradient(0, 0, length, 0);
-            beam.addColorStop(0, 'rgba(255,222,126,.42)');
-            beam.addColorStop(0.55, 'rgba(255,222,126,.13)');
-            beam.addColorStop(1, 'rgba(255,222,126,0)');
-            ctx.fillStyle = beam;
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(length, -length * spread);
-            ctx.lineTo(length, length * spread);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
+            const angle = (now * 0.00024) % (Math.PI * 2);
+            const length = Math.max(w, h) * 0.58;
+            const beamLayer = (spread, alpha, blur) => {
+                ctx.save();
+                ctx.translate(pharos.x, pharos.y + 8);
+                ctx.rotate(angle);
+                ctx.filter = `blur(${blur}px)`;
+                const beam = ctx.createLinearGradient(0, 0, length, 0);
+                beam.addColorStop(0, `rgba(255,224,142,${alpha})`);
+                beam.addColorStop(0.14, `rgba(255,218,125,${alpha * 0.7})`);
+                beam.addColorStop(0.62, `rgba(255,214,120,${alpha * 0.2})`);
+                beam.addColorStop(1, 'rgba(255,214,120,0)');
+                ctx.fillStyle = beam;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(length, -length * spread);
+                ctx.lineTo(length, length * spread);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            };
+            beamLayer(0.055, 0.12, 16);
+            beamLayer(0.018, 0.16, 5);
         }
         ctx.restore();
     }
