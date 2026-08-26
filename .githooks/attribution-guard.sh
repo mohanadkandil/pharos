@@ -3,7 +3,9 @@
 # third-party attribution trailers in commit messages.
 OWNER_NAME="mohanadkandil"
 OWNER_EMAIL="mohanadmkandil@gmail.com"
-BANNED='(co-authored-by|generated[ -]with|generated[ -]by|assisted[ -]by|ai[- ]generated|copilot|openai|claude|anthropic|cursor|factory[- ]droid|devin|codeium)'
+# Match attribution TRAILERS (line-initial), not prose that merely
+# contains words like "cursor".
+BANNED='^(co[- ]authored[- ]by|generated[- ]with|generated[- ]by|assisted[- ]by|ai[- ]generated|pair[- ]programmed[- ]with|[a-z0-9]*([Cc]laude|[Aa]nthropic|[Cc]opilot|[Oo]pen[Aa][Ii]|[Cc]ursor|[Ff]actory[- ][Dd]roid|[Dd]evin|[Cc]odeium))\b[ :]'
 
 MODE="${1:-identity}"
 if [ "$MODE" = "message" ]; then
