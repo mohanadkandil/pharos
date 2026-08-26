@@ -1,0 +1,526 @@
+/* Pharos UI — sun-baked Alexandria.
+   Warm papyrus surfaces, gold + lapis accents, turquoise selection.
+   Every visual here is pure CSS: gradients, clip-paths, shadows. */
+
+:root {
+    --papyrus:      #f3e9d2;
+    --papyrus-deep: #eaddbe;
+    --card:         #fbf5e9;
+    --card-2:       #f5ecd8;
+    --ink:          #33291a;
+    --ink-soft:     #5c5140;
+    --muted:        #97896e;
+    --line:         #ddceac;
+    --gold:         #e6bd57;
+    --gold-deep:    #c99a2e;
+    --lapis:        #24568f;
+    --lapis-deep:   #1a4271;
+    --turquoise:    #35b3a2;
+    --turquoise-soft: #d9f1ec;
+    --danger:       #c25b45;
+
+    --shadow:    0 10px 30px rgba(92, 70, 28, 0.12), 0 2px 6px rgba(92, 70, 28, 0.08);
+    --shadow-lg: 0 22px 56px rgba(92, 70, 28, 0.18), 0 4px 12px rgba(92, 70, 28, 0.10);
+
+    --radius:    14px;
+    --radius-lg: 18px;
+    --gap: 14px;
+
+    --safe-t: env(safe-area-inset-top, 0px);
+    --safe-r: env(safe-area-inset-right, 0px);
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-l: env(safe-area-inset-left, 0px);
+
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+            'Helvetica Neue', Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    font-family: var(--font);
+    color: var(--ink);
+    background: linear-gradient(180deg, #f6eeda 0%, var(--papyrus-deep) 100%);
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+#app.hidden { display: none; }
+
+#game-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    display: block;
+    background:
+        radial-gradient(ellipse at 50% 24%, #fdf6e4 0%, var(--papyrus) 55%, #e2d2a8 100%);
+    cursor: crosshair;
+    touch-action: none;
+}
+
+/* ── Loading screen ─────────────────────────────────────────────── */
+
+#loading-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(180deg, #f6eeda, #e6d6ae);
+}
+#loading-screen.hidden { display: none; }
+
+.loading-card {
+    width: min(380px, calc(100vw - 48px));
+    padding: 40px 44px 32px;
+    text-align: center;
+    background: var(--card);
+    border-radius: 22px;
+    box-shadow: var(--shadow-lg);
+}
+
+/* Gold lighthouse glyph on a lapis tile — pure CSS. */
+.loading-glyph {
+    position: relative;
+    width: 84px;
+    height: 84px;
+    margin: 0 auto 14px;
+    border-radius: 20px;
+    background: linear-gradient(165deg, #2f6bad 0%, var(--lapis) 55%, var(--lapis-deep) 100%);
+    box-shadow: inset 0 -8px 0 rgba(0, 0, 0, 0.14), 0 8px 20px rgba(36, 86, 143, 0.35);
+    overflow: hidden;
+}
+.glyph-tower {
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    width: 30px;
+    height: 40px;
+    transform: translateX(-50%);
+    background: linear-gradient(90deg, var(--gold-deep), var(--gold) 45%, #f4d98b 60%, var(--gold-deep));
+    clip-path: polygon(28% 0, 72% 0, 100% 100%, 0 100%);
+}
+.glyph-lamp {
+    position: absolute;
+    left: 50%;
+    bottom: 54px;
+    width: 14px;
+    height: 9px;
+    transform: translateX(-50%);
+    border-radius: 3px 3px 0 0;
+    background: #ffe9a8;
+    box-shadow: 0 0 12px 4px rgba(255, 233, 168, 0.55);
+}
+.glyph-base {
+    position: absolute;
+    left: 50%;
+    bottom: 10px;
+    width: 48px;
+    height: 7px;
+    transform: translateX(-50%);
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--gold-deep), var(--gold), var(--gold-deep));
+}
+.glyph-beam {
+    position: absolute;
+    bottom: 56px;
+    width: 34px;
+    height: 10px;
+    background: linear-gradient(90deg, rgba(255, 233, 168, 0.0), rgba(255, 233, 168, 0.55));
+    animation: beam-pulse 2.2s ease-in-out infinite;
+}
+.glyph-beam--left  { right: 50%; margin-right: 8px; transform: scaleX(-1) rotate(-4deg); }
+.glyph-beam--right { left: 50%;  margin-left: 8px;  transform: rotate(-4deg); }
+
+@keyframes beam-pulse {
+    0%, 100% { opacity: 0.35; }
+    50%      { opacity: 1; }
+}
+
+.loading-title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+}
+.loading-sub {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--muted);
+}
+.loading-bar {
+    margin-top: 22px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--papyrus-deep);
+    overflow: hidden;
+}
+#loading-fill {
+    width: 0%;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--gold-deep), var(--gold) 60%, #f2d789);
+    transition: width 0.18s ease;
+}
+#loading-status {
+    margin-top: 10px;
+    font-size: 12px;
+    font-style: italic;
+    color: var(--muted);
+}
+
+/* ── Title card ─────────────────────────────────────────────────── */
+
+#title-card {
+    position: fixed;
+    top: calc(var(--gap) + var(--safe-t));
+    left: calc(var(--gap) + var(--safe-l));
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px 10px 12px;
+    background: var(--card);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+}
+.title-glyph {
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+    background:
+        linear-gradient(165deg, #2f6bad 0%, var(--lapis) 55%, var(--lapis-deep) 100%);
+    position: relative;
+    overflow: hidden;
+    flex: 0 0 auto;
+}
+.title-glyph::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 8px;
+    width: 15px;
+    height: 20px;
+    transform: translateX(-50%);
+    background: linear-gradient(90deg, var(--gold-deep), var(--gold) 55%, var(--gold-deep));
+    clip-path: polygon(28% 0, 72% 0, 100% 100%, 0 100%);
+}
+.title-glyph::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 28px;
+    width: 7px;
+    height: 4px;
+    transform: translateX(-50%);
+    border-radius: 2px 2px 0 0;
+    background: #ffe9a8;
+    box-shadow: 0 0 8px 2px rgba(255, 233, 168, 0.6);
+}
+.title-text h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+}
+.title-text p {
+    margin: 2px 0 0;
+    font-size: 11px;
+    color: var(--muted);
+}
+
+/* ── Toolbar ────────────────────────────────────────────────────── */
+
+#toolbar {
+    position: fixed;
+    left: calc(var(--gap) + var(--safe-l));
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    background: var(--card);
+    border-radius: 999px;
+    box-shadow: var(--shadow);
+}
+
+#toolbar .tool {
+    appearance: none;
+    border: 0;
+    margin: 0;
+    width: 58px;
+    padding: 8px 4px 7px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: transparent;
+    border-radius: 999px;
+    color: var(--lapis);
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.12s ease, color 0.15s ease;
+}
+#toolbar .tool svg {
+    width: 22px;
+    height: 22px;
+    display: block;
+}
+#toolbar .tool .label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--ink-soft);
+}
+#toolbar .tool:hover {
+    background: var(--card-2);
+    transform: translateY(-1px);
+}
+#toolbar .tool:active { transform: scale(0.94); }
+#toolbar .tool.active {
+    background: var(--turquoise);
+    color: #fff;
+    box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12);
+}
+#toolbar .tool.active .label { color: #fff; }
+#toolbar .tool.tool--danger { color: var(--danger); }
+
+/* ── Palette ────────────────────────────────────────────────────── */
+
+#palette {
+    position: fixed;
+    right: calc(var(--gap) + var(--safe-r));
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    width: 232px;
+    max-height: min(74vh, 640px);
+    background: var(--card);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+#palette-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 10px 10px 8px;
+    border-bottom: 1px solid var(--line);
+    background: var(--card-2);
+}
+#palette-tabs .tab {
+    appearance: none;
+    border: 0;
+    margin: 0;
+    padding: 5px 10px;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--ink-soft);
+    background: transparent;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+#palette-tabs .tab:hover { background: rgba(230, 189, 87, 0.25); }
+#palette-tabs .tab:active { transform: scale(0.95); }
+#palette-tabs .tab.active {
+    background: var(--lapis);
+    color: #fff;
+}
+
+#palette-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 12px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+#palette-grid .swatch {
+    appearance: none;
+    border: 2px solid transparent;
+    margin: 0;
+    padding: 8px 4px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: var(--card-2);
+    border-radius: var(--radius);
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+#palette-grid .swatch canvas {
+    width: 48px;
+    height: 48px;
+    display: block;
+    image-rendering: auto;
+}
+#palette-grid .swatch .name {
+    font-size: 9.5px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    text-align: center;
+    line-height: 1.15;
+}
+#palette-grid .swatch:hover {
+    transform: translateY(-2px);
+    background: #fff;
+    box-shadow: 0 6px 14px rgba(92, 70, 28, 0.14);
+}
+#palette-grid .swatch:active { transform: scale(0.95); }
+#palette-grid .swatch.selected {
+    border-color: var(--turquoise);
+    background: var(--turquoise-soft);
+}
+#palette-grid .swatch.selected .name { color: var(--ink); }
+
+/* ── HUD ────────────────────────────────────────────────────────── */
+
+#hud {
+    position: fixed;
+    right: calc(var(--gap) + var(--safe-r));
+    top: calc(var(--gap) + var(--safe-t));
+    z-index: 20;
+    min-width: 148px;
+    padding: 10px 14px;
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    font-size: 12px;
+}
+#hud .hud-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 2px 0;
+}
+#hud .hud-key {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11px;
+}
+#hud #hud-asset { font-weight: 700; color: var(--lapis); }
+#hud #hud-cell, #hud #hud-count {
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-soft);
+    font-weight: 600;
+}
+
+/* ── Controls hint chip ─────────────────────────────────────────── */
+
+#controls-hint {
+    position: fixed;
+    left: calc(var(--gap) + var(--safe-l));
+    bottom: calc(var(--gap) + var(--safe-b));
+    z-index: 20;
+    max-width: min(72vw, 620px);
+    padding: 8px 14px;
+    background: rgba(251, 245, 233, 0.92);
+    border-radius: 999px;
+    box-shadow: var(--shadow);
+    font-size: 11px;
+    color: var(--ink-soft);
+    line-height: 1.7;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+#controls-hint .chip-key {
+    display: inline-block;
+    padding: 1px 6px;
+    margin-right: 2px;
+    border-radius: 6px;
+    background: var(--papyrus-deep);
+    color: var(--lapis);
+    font-weight: 700;
+    font-size: 10px;
+}
+#controls-hint .chip-sep {
+    margin: 0 6px;
+    color: var(--gold-deep);
+}
+
+/* ── Toast ──────────────────────────────────────────────────────── */
+
+#toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(28px + var(--safe-b));
+    z-index: 50;
+    transform: translate(-50%, 18px);
+    padding: 10px 22px;
+    background: var(--lapis);
+    color: #fdf6e4;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 999px;
+    box-shadow: 0 12px 30px rgba(26, 66, 113, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+#toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+/* ── Responsive: bottom-sheet palette on narrow screens ─────────── */
+
+@media (max-width: 900px) {
+    #palette {
+        left: 50%;
+        right: auto;
+        top: auto;
+        bottom: 0;
+        transform: translateX(-50%);
+        width: min(100vw, 560px);
+        max-height: 34vh;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        padding-bottom: var(--safe-b);
+    }
+    #palette-grid {
+        grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+    }
+    #toolbar {
+        top: auto;
+        bottom: calc(35vh + var(--gap) + var(--safe-b));
+        left: calc(8px + var(--safe-l));
+        transform: none;
+        flex-direction: row;
+        border-radius: 999px;
+        padding: 6px;
+        max-width: calc(100vw - 16px);
+        overflow-x: auto;
+    }
+    #toolbar .tool { width: 52px; padding: 6px 2px 5px; }
+    #controls-hint { display: none; }
+    #hud { font-size: 11px; min-width: 128px; }
+    #title-card { padding: 8px 14px 8px 10px; }
+    .title-text p { display: none; }
+    #toast { bottom: calc(36vh + var(--safe-b)); }
+}
+
+@media (max-width: 520px) {
+    #hud .hud-row:nth-child(2) { display: none; }
+    #toolbar .tool .label { display: none; }
+    #toolbar .tool { width: 44px; }
+}
