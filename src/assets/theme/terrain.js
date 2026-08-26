@@ -26,7 +26,7 @@ function speckle(voxels, spots, color) {
 }
 
 /** Nile silt: rich riverbank soil with darker wet patches. */
-export function tileFertileSilt() {
+export function fertileSilt() {
     const t = floor(P.silt);
     speckle(t, [
         { x: 1, y: 2 }, { x: 2, y: 1 }, { x: 3, y: 3 },
@@ -38,7 +38,7 @@ export function tileFertileSilt() {
 }
 
 /** Dune sand with wind ripples running across. */
-export function tileDuneSand() {
+export function duneSand() {
     const t = floor(P.sand);
     for (let x = 0; x < VPT; x++) {
         const v = t.find(o => o.x === x && o.y === 1 && o.z === 0);
@@ -50,7 +50,7 @@ export function tileDuneSand() {
 }
 
 /** Sandstone paving slab with a lit back edge and worn corners. */
-export function tileSandstonePath() {
+export function sandstonePath() {
     const t = floor(P.path);
     speckle(t, [
         { x: 0, y: 0 }, { x: 3, y: 0 },
@@ -62,7 +62,7 @@ export function tileSandstonePath() {
 }
 
 /** Polished marble with a lapis inlay at opposite corners. */
-export function tileMarbleFloor() {
+export function marbleFloor() {
     const t = floor(P.marble);
     speckle(t, [
         { x: 0, y: 0 }, { x: 1, y: 0 },
@@ -74,7 +74,7 @@ export function tileMarbleFloor() {
 }
 
 /** Nile water: deep teal with glints near the back edge. */
-export function tileNileWater() {
+export function nileWater() {
     const t = floor(P.nileDeep);
     speckle(t, [
         { x: 1, y: 0 }, { x: 2, y: 0 },
@@ -89,7 +89,7 @@ export function tileNileWater() {
  * Quay wall: dressed-stone block whose raised lip holds land above the
  * water line when placed between ground and Nile tiles.
  */
-export function tileQuayWall() {
+export function quayWall() {
     const base = box(0, 0, 0, VPT, VPT, 2, P.limestoneDark);
     // Lit cap stones
     for (let x = 0; x < VPT; x++)
@@ -98,7 +98,6 @@ export function tileQuayWall() {
             if (v) v.c = P.limestone;
         }
     // Masonry joints on the visible front faces
-    speckle(base.map(v => ({ ...v })), [], null); // no-op guard
     for (const v of base) {
         if (v.z === 0 && (v.y === 3 || v.x === 3) && (v.x + v.y) % 2 === 0) {
             v.c = shadeHex(P.limestoneDark, -0.12);
@@ -113,7 +112,7 @@ export function tileQuayWall() {
 }
 
 /** Steps ascending toward the back of the cell. */
-export function tileStairs() {
+export function stairs() {
     const steps = [];
     for (let step = 0; step < VPT; step++) {
         const y = VPT - 1 - step;          // front row lowest
