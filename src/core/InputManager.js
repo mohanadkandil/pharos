@@ -329,6 +329,7 @@ export class InputManager {
         const actions = {
             'e': () => this.game.setTool(this.game.tool === 'erase' ? 'place' : 'erase'),
             'g': () => this.game.toggleGrid(),
+            'n': () => this.game.toggleNight(),
             'h': () => this.game.toggleFlipH(),
             'v': () => this.game.toggleFlipV(),
             's': () => this.game.save(),

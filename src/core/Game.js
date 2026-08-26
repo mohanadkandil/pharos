@@ -35,6 +35,13 @@ export class Game {
         this.flipH = false;
         this.flipV = false;
         this.gridVisible = false;
+        try {
+            this.nightMode = localStorage.getItem('pharos.night') === '1';
+        } catch {
+            this.nightMode = false;
+        }
+        this.renderer.setNightMode(this.nightMode);
+        document.documentElement.classList.toggle('night-mode', this.nightMode);
 
         this._centerCamera();
 
@@ -105,6 +112,15 @@ export class Game {
         this.gridVisible = !this.gridVisible;
         this.renderer.gridVisible = this.gridVisible;
         this.renderer.markDirty();
+        this.ui?.update();
+    }
+
+    toggleNight() {
+        this.nightMode = !this.nightMode;
+        this.renderer.setNightMode(this.nightMode);
+        document.documentElement.classList.toggle('night-mode', this.nightMode);
+        try { localStorage.setItem('pharos.night', this.nightMode ? '1' : '0'); } catch {}
+        this.ui?.showToast(this.nightMode ? 'Lanterns lit — night falls' : 'Sunrise over Alexandria');
         this.ui?.update();
     }
 

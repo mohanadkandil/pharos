@@ -60,6 +60,7 @@ export class Renderer {
         this.previewFlipH = false;
         this.previewFlipV = false;
         this.eraseMode = false;
+        this.nightMode = false;
 
         // Placement pop animations: key → { start, dur, cell, objId, tileKey }.
         this._anims = new Map();
@@ -83,6 +84,7 @@ export class Renderer {
         this._bounds = null;          // world-space rect shared by world caches
         this._waterCells = [];        // cells holding nile_water, for shimmer
         this._shimmerAt = 0;
+        this._nightAt = 0;
 
         this._cssW = 1;
         this._cssH = 1;
@@ -94,6 +96,12 @@ export class Renderer {
 
     /** Request a redraw on the next frame. */
     markDirty() { this._dirty = true; }
+
+    setNightMode(on) {
+        this.nightMode = !!on;
+        this._skyStale = true;
+        this._dirty = true;
+    }
 
     /** Fit the canvas to its parent element at device-pixel resolution. */
     resize() {
@@ -148,7 +156,8 @@ export class Renderer {
         const animsPending = this._anims.size > 0;
         const shimmerDue = this._waterCells.length > 0
             && (now - this._shimmerAt) >= SHIMMER_MS;
-        if (!this._dirty && !animsPending && !shimmerDue) return;
+        const nightDue = this.nightMode && (now - this._nightAt) >= 50;
+        if (!this._dirty && !animsPending && !shimmerDue && !nightDue) return;
         this._dirty = false;
 
         const ctx = this.ctx;
@@ -180,6 +189,10 @@ export class Renderer {
         this._drawOverlay();
         ctx.restore();
 
+        if (this.nightMode) {
+            this._drawNightLights(now, w, h);
+            this._nightAt = now;
+        }
         ctx.drawImage(this._sky.vignette, 0, 0, w, h);
     }
 
@@ -268,33 +281,60 @@ export class Renderer {
 
         const bctx = base.getContext('2d');
         bctx.scale(dpr, dpr);
-        // Warm papyrus sky: pale at the horizon, sinking into dune sand.
-        const sky = bctx.createLinearGradient(0, 0, 0, h);
-        sky.addColorStop(0, '#fbf4e0');
-        sky.addColorStop(0.55, PAL.sandLight);
-        sky.addColorStop(1, PAL.sand);
-        bctx.fillStyle = sky;
-        bctx.fillRect(0, 0, w, h);
-        // Low Mediterranean sun glowing from the upper right.
-        const sun = bctx.createRadialGradient(
-            w * 0.72, h * 0.14, 0,
-            w * 0.72, h * 0.14, Math.max(w, h) * 0.8,
-        );
-        sun.addColorStop(0, tint(PAL.goldLight, 0.5));
-        sun.addColorStop(0.4, tint(PAL.goldLight, 0.12));
-        sun.addColorStop(1, tint(PAL.goldLight, 0));
-        bctx.fillStyle = sun;
-        bctx.fillRect(0, 0, w, h);
-        // Faint papyrus speckle, thinning toward the edges.
-        const step = 26;
-        const cx = w / 2, cy = h / 2;
-        const maxR = Math.hypot(cx, cy);
-        for (let y = 0; y < h; y += step)
-        for (let x = 0; x < w; x += step) {
-            const a = 0.045 * (1 - (Math.hypot(x - cx, y - cy) / maxR) * 0.85);
-            if (a <= 0) continue;
-            bctx.fillStyle = tint(PAL.soilDark, a);
-            bctx.fillRect(x, y, 1, 1);
+        if (this.nightMode) {
+            const sky = bctx.createLinearGradient(0, 0, 0, h);
+            sky.addColorStop(0, '#07142f');
+            sky.addColorStop(0.58, '#132852');
+            sky.addColorStop(1, '#253456');
+            bctx.fillStyle = sky;
+            bctx.fillRect(0, 0, w, h);
+
+            // Deterministic star field; no random flicker between rebuilds.
+            for (let i = 0; i < 90; i++) {
+                const x = (i * 137 + 53) % Math.max(1, Math.floor(w));
+                const y = (i * 71 + 29) % Math.max(1, Math.floor(h * 0.72));
+                const r = i % 11 === 0 ? 1.4 : i % 4 === 0 ? 1 : 0.6;
+                bctx.fillStyle = i % 7 === 0 ? '#f6dc8d' : '#dce8ff';
+                bctx.globalAlpha = 0.45 + (i % 5) * 0.1;
+                bctx.beginPath();
+                bctx.arc(x, y, r, 0, Math.PI * 2);
+                bctx.fill();
+            }
+            bctx.globalAlpha = 1;
+
+            const moon = bctx.createRadialGradient(w * 0.76, h * 0.14, 0,
+                w * 0.76, h * 0.14, Math.max(w, h) * 0.34);
+            moon.addColorStop(0, 'rgba(214,226,255,.24)');
+            moon.addColorStop(1, 'rgba(214,226,255,0)');
+            bctx.fillStyle = moon;
+            bctx.fillRect(0, 0, w, h);
+        } else {
+            // Warm papyrus sky: pale at the horizon, sinking into dune sand.
+            const sky = bctx.createLinearGradient(0, 0, 0, h);
+            sky.addColorStop(0, '#fbf4e0');
+            sky.addColorStop(0.55, PAL.sandLight);
+            sky.addColorStop(1, PAL.sand);
+            bctx.fillStyle = sky;
+            bctx.fillRect(0, 0, w, h);
+            const sun = bctx.createRadialGradient(
+                w * 0.72, h * 0.14, 0,
+                w * 0.72, h * 0.14, Math.max(w, h) * 0.8,
+            );
+            sun.addColorStop(0, tint(PAL.goldLight, 0.5));
+            sun.addColorStop(0.4, tint(PAL.goldLight, 0.12));
+            sun.addColorStop(1, tint(PAL.goldLight, 0));
+            bctx.fillStyle = sun;
+            bctx.fillRect(0, 0, w, h);
+            const step = 26;
+            const cx = w / 2, cy = h / 2;
+            const maxR = Math.hypot(cx, cy);
+            for (let y = 0; y < h; y += step)
+            for (let x = 0; x < w; x += step) {
+                const a = 0.045 * (1 - (Math.hypot(x - cx, y - cy) / maxR) * 0.85);
+                if (a <= 0) continue;
+                bctx.fillStyle = tint(PAL.soilDark, a);
+                bctx.fillRect(x, y, 1, 1);
+            }
         }
 
         const vctx = vignette.getContext('2d');
@@ -826,6 +866,71 @@ export class Renderer {
                 const p = cellToScreen(cell.gx + 0.5 + u, cell.gy + 0.5 + v);
                 ctx.fillRect(p.x - 1.5, p.y - 0.75, 3, 1.5);
             }
+        }
+        ctx.restore();
+    }
+
+    /** Screen-space night tint, practical lights, and rotating Pharos beam. */
+    _drawNightLights(now, w, h) {
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.fillStyle = 'rgba(4, 10, 32, .48)';
+        ctx.fillRect(0, 0, w, h);
+        ctx.globalCompositeOperation = 'screen';
+
+        const glow = (wx, wy, radius, color, strength = 0.8) => {
+            const p = this.camera.worldToScreen(wx, wy);
+            const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, radius);
+            g.addColorStop(0, color.replace('ALPHA', String(strength)));
+            g.addColorStop(0.25, color.replace('ALPHA', String(strength * 0.55)));
+            g.addColorStop(1, color.replace('ALPHA', '0'));
+            ctx.fillStyle = g;
+            ctx.fillRect(p.x - radius, p.y - radius, radius * 2, radius * 2);
+        };
+
+        const warm = 'rgba(255,190,72,ALPHA)';
+        const cool = 'rgba(82,206,214,ALPHA)';
+        let pharos = null;
+        for (const obj of this.tileMap.objects) {
+            const ground = cellToScreen(
+                obj.gx + obj.footprint.w / 2,
+                obj.gy + obj.footprint.d / 2,
+            );
+            if (obj.assetId === 'fanoos_lantern') glow(ground.x, ground.y - 32, 48, warm, 0.95);
+            else if (obj.assetId === 'bronze_brazier') {
+                const flicker = 0.75 + Math.sin(now * 0.023) * 0.12;
+                glow(ground.x, ground.y - 24, 58, warm, flicker);
+            } else if (obj.assetId === 'mosque') {
+                glow(ground.x, ground.y - 78, 62, cool, 0.34);
+            } else if (obj.assetId === 'alexandria_house'
+                || obj.assetId === 'mudbrick_house') {
+                glow(ground.x, ground.y - 42, 48, warm, 0.42);
+            } else if (obj.assetId === 'pharos') {
+                pharos = { x: ground.x, y: ground.y - 165 };
+                glow(pharos.x, pharos.y, 88, warm, 1);
+            }
+        }
+
+        if (pharos) {
+            const p = this.camera.worldToScreen(pharos.x, pharos.y);
+            const angle = (now * 0.00035) % (Math.PI * 2);
+            const length = Math.max(w, h) * 0.72;
+            const spread = 0.11;
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(angle);
+            const beam = ctx.createLinearGradient(0, 0, length, 0);
+            beam.addColorStop(0, 'rgba(255,222,126,.42)');
+            beam.addColorStop(0.55, 'rgba(255,222,126,.13)');
+            beam.addColorStop(1, 'rgba(255,222,126,0)');
+            ctx.fillStyle = beam;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(length, -length * spread);
+            ctx.lineTo(length, length * spread);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
         }
         ctx.restore();
     }
