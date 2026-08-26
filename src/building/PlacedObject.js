@@ -3,7 +3,19 @@
  */
 
 export class PlacedObject {
-    constructor({ id, assetId, gx, gy, footprint, flipH = false, flipV = false }) {
+    constructor({
+        id,
+        assetId,
+        gx,
+        gy,
+        footprint,
+        flipH = false,
+        flipV = false,
+        kind = 'object',
+        constructionId = null,
+        renderStatic = true,
+        buildingId = null,
+    }) {
         this.id = id;
         this.assetId = assetId;
         this.gx = gx;               // footprint origin (back-left cell)
@@ -11,6 +23,10 @@ export class PlacedObject {
         this.footprint = footprint; // { w, d }
         this.flipH = !!flipH;
         this.flipV = !!flipV;
+        this.kind = kind;
+        this.constructionId = constructionId;
+        this.renderStatic = renderStatic !== false;
+        this.buildingId = buildingId;
     }
 
     occupies(gx, gy) {
@@ -44,6 +60,10 @@ export class PlacedObject {
             footprint: { ...this.footprint },
             flipH: this.flipH,
             flipV: this.flipV,
+            kind: this.kind,
+            constructionId: this.constructionId,
+            renderStatic: this.renderStatic,
+            buildingId: this.buildingId,
         };
     }
 }

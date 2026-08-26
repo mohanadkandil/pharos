@@ -13,21 +13,37 @@ import { SaveSystem } from '../storage/SaveSystem.js';
 import { ASSET_INDEX, ASSET_MANIFEST } from '../assets/assetManifest.js';
 import { cellToScreen } from '../grid/IsoGrid.js';
 import { playPlacement, playErase } from '../ui/Audio.js';
+import { ConstructionSystem } from '../construction/ConstructionSystem.js';
+import { SPRITE_DEFINITIONS } from '../construction/content.js';
 
 const FILL_WAVE_MS = 26;   // per-diagonal stagger for the terrain flood
 const TOOLS = new Set(['place', 'fill', 'erase', 'pan']);
 
 export class Game {
-    constructor(canvas) {
+    constructor(canvas, { runtimeMode = 'editor' } = {}) {
         this.canvas = canvas;
+        this.runtimeMode = runtimeMode;
         this.tileMap = new TileMap();
         this.camera = new Camera();
         this.placement = new PlacementSystem(this.tileMap);
+        this.construction = new ConstructionSystem(this.tileMap);
         this.renderer = new Renderer(canvas, this.camera, this.tileMap);
+        this.renderer.prepareConstructionSprites?.(SPRITE_DEFINITIONS);
+        this.renderer.constructionSnapshot = this.construction.getRenderSnapshot();
         this.input = new InputManager(canvas, this.camera, this);
 
         // Pan/zoom only needs the next composite re-stamped.
         this.camera.onChange(() => this.renderer.markDirty());
+
+        this.buildingHistory = [];
+        this.construction.setCallbacks({
+            onChange: () => {
+                this.renderer.constructionSnapshot = this.construction.getRenderSnapshot();
+                this.renderer.markDirty();
+                this.ui?.update();
+            },
+            onMilestone: () => this.save({ silent: true }),
+        });
 
         this.ui = null;                 // attached by main.js after UIManager
         this.tool = 'place';            // 'place' | 'fill' | 'erase' | 'pan'
@@ -46,6 +62,7 @@ export class Game {
         this._centerCamera();
 
         const step = (now) => {
+            this.construction.update(now, !document.hidden);
             this.renderer.render(now);
             requestAnimationFrame(step);
         };
@@ -54,6 +71,8 @@ export class Game {
 
     /** Hovered cell, for HUD readouts. */
     get hoverCell() { return this.renderer.hoverCell; }
+
+    get constructionView() { return this.construction.getViewModel(); }
 
     _centerCamera() {
         const mid = cellToScreen(this.tileMap.width / 2, this.tileMap.height / 2);
@@ -126,23 +145,37 @@ export class Game {
 
     /* ── Persistence ──────────────────────────────────────────── */
 
-    save() {
-        const ok = SaveSystem.save(this.tileMap, this.camera);
-        this.ui?.showToast(ok ? 'City saved' : 'Save failed');
-        return ok;
+    save({ silent = false } = {}) {
+        const result = SaveSystem.save(
+            this.tileMap,
+            this.camera,
+            this.construction.getSerializableRecord(),
+            this.buildingHistory,
+        );
+        if (!silent) this.ui?.showToast(result.ok ? 'City saved' : result.message);
+        return result.ok;
     }
 
     load() {
-        const ok = SaveSystem.load(this.tileMap, this.camera);
-        if (ok) {
-            this.renderer.markDirty();
-            this.ui?.update();
+        const result = SaveSystem.load(this.tileMap, this.camera);
+        if (!result.ok) {
+            this.ui?.showToast(result.message);
+            return false;
         }
-        return ok;
+        if (!result.value.loaded) return false;
+        this.buildingHistory = result.value.buildingHistory;
+        const restore = this.construction.restoreRecord(result.value.constructionRecord);
+        if (!restore.ok) this.ui?.showToast(restore.message);
+        this.renderer.constructionSnapshot = this.construction.getRenderSnapshot();
+        this.renderer.markDirty();
+        this.ui?.update();
+        return true;
     }
 
     reset() {
         this.tileMap.clearAll();
+        this.construction.reset();
+        this.buildingHistory = [];
         SaveSystem.clear();
         this._centerCamera();
         this.renderer.markDirty();
@@ -181,6 +214,19 @@ export class Game {
         return true;
     }
 
+    /* ── Living construction intents ─────────────────────────── */
+
+    confirmConstructionSite() { return this.construction.confirmSite(); }
+    selectConstructionPlan(planId) { return this.construction.selectPlan(planId); }
+    beginConstruction() { return this.construction.beginConstruction(); }
+    setConstructionPaused(paused) { return this.construction.setPaused(paused); }
+    setConstructionSpeed(speed) { return this.construction.setPlaybackSpeed(speed); }
+    skipConstructionPhase() { return this.construction.skipToNextPhase(); }
+    resolveConstructionIntervention(optionId) { return this.construction.resolveIntervention(optionId); }
+    replayConstruction() { return this.construction.startReplay(); }
+    stopConstructionReplay() { return this.construction.stopReplay(); }
+    seedMobileConstructionDemo() { return this.construction.seedCompletedDemo(); }
+
     /* ── World mutations ──────────────────────────────────────── */
 
     /**
@@ -189,6 +235,7 @@ export class Game {
      * Returns the placement result, or null when rejected.
      */
     placeAndAnimate(assetId, gx, gy, opts = {}) {
+        if (this.runtimeMode === 'mobile-replay' || this.construction.ownsCell(gx, gy)) return null;
         if (!this.placement.canPlace(assetId, gx, gy)) return null;
         const result = this.placement.place(assetId, gx, gy, {
             flipH: !!opts.flipH,
@@ -223,6 +270,7 @@ export class Game {
     /** Erase the topmost thing at a cell. Returns true when removed. */
     eraseAt(gx, gy) {
         if (!this.tileMap.inBounds(gx, gy)) return false;
+        if (this.runtimeMode === 'mobile-replay' || this.construction.ownsCell(gx, gy)) return false;
         if (!this.placement.erase(gx, gy)) return false;
         playErase();
         this.renderer.markDirty();
@@ -237,6 +285,7 @@ export class Game {
         let laid = 0;
         for (let gy = 0; gy < this.tileMap.height; gy++)
         for (let gx = 0; gx < this.tileMap.width; gx++) {
+            if (this.construction.ownsCell(gx, gy)) continue;
             if (this.placeAndAnimate(assetId, gx, gy, {
                 delay: (gx + gy) * FILL_WAVE_MS,
                 silent: true,
@@ -256,6 +305,7 @@ export class Game {
     /** Left click / tap / brush step: apply the active tool. */
     applyPrimary(gx, gy) {
         if (!this.tileMap.inBounds(gx, gy)) return;
+        if (this.runtimeMode === 'mobile-replay') return;
         switch (this.tool) {
             case 'place':
                 this.placeAndAnimate(this.selectedAssetId, gx, gy, {
@@ -277,6 +327,7 @@ export class Game {
 
     /** Right click / long-press: erase regardless of the active tool. */
     applySecondary(gx, gy) {
+        if (this.runtimeMode === 'mobile-replay') return;
         this.eraseAt(gx, gy);
     }
 

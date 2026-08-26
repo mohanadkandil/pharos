@@ -27,7 +27,8 @@ async function main() {
     await new Promise(r => setTimeout(r, 250));
 
     const canvas = document.getElementById('game-canvas');
-    const game = new Game(canvas);
+    const runtimeMode = window.matchMedia('(max-width: 767px)').matches ? 'mobile-replay' : 'editor';
+    const game = new Game(canvas, { runtimeMode: 'editor' });
     const ui = new UIManager(game);
     game.ui = ui;
     ui.update();
@@ -36,7 +37,10 @@ async function main() {
         ui.showToast('Welcome back');
     } else {
         seedAlexandria(game);
+        if (runtimeMode === 'mobile-replay') game.seedMobileConstructionDemo();
     }
+    game.runtimeMode = runtimeMode;
+    ui.update();
 
     loadingScreen.classList.add('hidden');
     app.classList.remove('hidden');
@@ -75,8 +79,8 @@ function seedAlexandria(game) {
         for (let gx = 6; gx <= 10; gx++) placeT('marble_floor', gx, gy);
 
     // …a sandstone lane down to the harbor and along the souq row…
-    for (let gy = 5; gy <= 13; gy++) placeT('sandstone_path', 7, gy);
-    for (let gx = 2; gx <= 13; gx++) placeT('sandstone_path', gx, 13);
+    for (let gy = 5; gy <= 14; gy++) placeT('sandstone_path', 7, gy);
+    for (let gx = 2; gx <= 7; gx++) placeT('sandstone_path', gx, 13);
 
     // …and a wide Nile along the front.
     for (let gy = H - 3; gy < H; gy++)
@@ -84,7 +88,7 @@ function seedAlexandria(game) {
 
     // Quay wall holding the corniche above the water, stairs mid-lane.
     for (let gx = 0; gx < W; gx++) {
-        if (gx === 7) continue;
+        if (gx >= 7 && gx <= 12) continue;
         placeO('quay_wall', gx, 14);
     }
     placeO('stairs', 7, 14);
@@ -110,14 +114,14 @@ function seedAlexandria(game) {
     placeO('camel', 3, 12);
     placeO('spice_crate', 4, 13);
     placeO('amphora', 5, 13);
-    placeO('zir_jar', 10, 13);
+    placeO('zir_jar', 13, 13);
     placeO('fanoos_lantern', 6, 13);
-    placeO('fanoos_lantern', 8, 13);
-    placeO('bronze_brazier', 12, 12);
+    placeO('fanoos_lantern', 13, 12);
+    placeO('bronze_brazier', 13, 10);
 
     // ── Green things ──────────────────────────────────────────────
     placeO('date_palm', 0, 11);
-    placeO('date_palm', 11, 10);
+    placeO('date_palm', 8, 10);
     placeO('date_palm', 16, 2);
     placeO('twin_palms', 16, 8);
     placeO('acacia', 14, 0);
