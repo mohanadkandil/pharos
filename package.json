@@ -1,0 +1,20 @@
+{
+  "name": "hypatia",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Rebuild Alexandria through living construction chronicles.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "node build.mjs",
+    "test:unit": "npm run build && node --test --experimental-test-coverage --test-coverage-include='dist/src/construction/*.js' --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=100 dist/tests/construction/*.test.js dist/tests/storage/*.test.js",
+    "test:e2e": "npm run build && playwright test",
+    "test": "npm run typecheck && npm run test:unit && npm run test:e2e",
+    "start": "python3 -m http.server 8000 -d dist"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/node": "26.3.0",
+    "typescript": "7.0.2"
+  }
+}
