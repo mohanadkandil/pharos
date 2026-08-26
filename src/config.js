@@ -10,8 +10,8 @@
 
 export const CONFIG = Object.freeze({
     grid: {
-        width: 14,
-        height: 14,
+        width: 18,
+        height: 18,
     },
 
     // One ground cell on the isometric grid: a classic 2:1 diamond.
@@ -31,7 +31,7 @@ export const CONFIG = Object.freeze({
     camera: {
         minZoom: 0.5,
         maxZoom: 3.0,
-        defaultZoom: 1.4,
+        defaultZoom: 0.8,
     },
 
     layers: Object.freeze({
