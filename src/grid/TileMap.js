@@ -41,6 +41,8 @@ export class TileMap {
         this.terrainVersion++;
     }
 
+    clearTerrain(gx, gy) { this.setTerrain(gx, gy, null); }
+
     getTerrain(gx, gy) {
         return this.inBounds(gx, gy)
             ? this.terrain[this._index(gx, gy)]
